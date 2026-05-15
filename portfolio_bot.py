@@ -3,39 +3,66 @@ import requests
 from datetime import datetime
 import os
 
+# ==============================
+# CONFIG (GitHub Secrets)
+# ==============================
+
 TOKEN = os.getenv("TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
+# ==============================
+# PORTFOLIO (corretto Yahoo)
+# ==============================
+
 PORTFOLIO = {
-    "IE00B6R52259": ("ISAC.MI", "MSCI ACWI"),
-    "IE00B579F325": ("SGLD.MI", "Gold"),
-    "IE00BKM4GZ66": ("EIMI.MI", "Emerging Markets"),
-    "IE000U58J0M1": ("Q8Y0.DE", "Clean Energy"),
-    "IE00BF4RFH31": ("IUSN.MI", "Small Cap"),
-    "IE00B4NCWG09": ("SSLN.MI", "Silver"),
-    "IE00B3WJKG14": ("QDVE.MI", "Tech"),
-    "IE00BH4GR342": ("SPY2.DE", "Real Estate")
+    "IE00B6R52259": ("SSAC.L", "MSCI ACWI"),
+    "IE00B579F325": ("SGLD.L", "Gold"),
+    "IE00BKM4GZ66": ("EIMI.L", "Emerging Markets"),
+    "IE000U58J0M1": ("INRA.AS", "Clean Energy"),
+    "IE00BF4RFH31": ("WSML.L", "Small Cap"),
+    "IE00B4NCWG09": ("SSLN.L", "Silver"),
+    "IE00B3WJKG14": ("IITU.L", "Tech"),
+    "IE00BH4GR342": ("GLRA.L", "Real Estate")
 }
 
+# ==============================
+# FUNZIONI
+# ==============================
 
 def get_data(ticker):
-    return yf.download(ticker, period="1y", interval="1d", progress=False)
+    try:
+        data = yf.download(ticker, period="1y", interval="1d", progress=False)
+        return data
+    except:
+        return None
 
 
 def calc_perf(data):
-    close = data["Close"]
-    latest = close.iloc[-1]
+    if data is None or data.empty:
+        return 0, 0, 0, 0, 0
 
-    daily = (latest - close.iloc[-2]) / close.iloc[-2] if len(close) > 1 else 0
-    weekly = (latest - close.iloc[-6]) / close.iloc[-6] if len(close) > 6 else 0
-    monthly = (latest - close.iloc[-22]) / close.iloc[-22] if len(close) > 22 else 0
-    yearly = (latest - close.iloc[0]) / close.iloc[0]
+    close = data["Close"]
+
+    try:
+        latest = float(close.iloc[-1])
+
+        daily = (latest - float(close.iloc[-2])) / float(close.iloc[-2]) if len(close) > 1 else 0
+        weekly = (latest - float(close.iloc[-6])) / float(close.iloc[-6]) if len(close) > 6 else 0
+        monthly = (latest - float(close.iloc[-22])) / float(close.iloc[-22]) if len(close) > 22 else 0
+        yearly = (latest - float(close.iloc[0])) / float(close.iloc[0])
+
+    except:
+        return 0, 0, 0, 0, 0
 
     return latest, daily, weekly, monthly, yearly
 
 
-def emoji(v):
-    return "🟢" if v > 0 else "🔴" if v < 0 else "⚪"
+def emoji(value):
+    if value > 0:
+        return "🟢"
+    elif value < 0:
+        return "🔴"
+    return "⚪"
 
 
 def format_msg(results):
@@ -44,9 +71,15 @@ def format_msg(results):
     msg = f"📊 Portfolio Update ({today})\n\n"
 
     for isin, (name, price, d, w, m, y) in results.items():
-        msg += f"{name}\n"
+
+        msg += f"📌 {name}\n"
         msg += f"{isin}\n"
-        msg += f"Prezzo: {price:.2f}\n"
+
+        if price == 0:
+            msg += "⚠️ Dati non disponibili\n\n"
+            continue
+
+        msg += f"💰 Prezzo: {price:.2f}\n"
         msg += f"{emoji(d)} Giorno: {d:+.2%}\n"
         msg += f"{emoji(w)} Settimana: {w:+.2%}\n"
         msg += f"{emoji(m)} Mese: {m:+.2%}\n"
@@ -56,27 +89,35 @@ def format_msg(results):
 
 
 def send_telegram(msg):
+    if not TOKEN or not CHAT_ID:
+        print("❌ TOKEN o CHAT_ID mancanti")
+        return
+
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    requests.post(url, data={
-        "chat_id": CHAT_ID,
-        "text": msg
-    })
+
+    try:
+        requests.post(url, data={
+            "chat_id": CHAT_ID,
+            "text": msg
+        })
+    except Exception as e:
+        print("Errore invio Telegram:", e)
 
 
 def run():
     results = {}
 
     for isin, (ticker, name) in PORTFOLIO.items():
-        try:
-            data = get_data(ticker)
-            price, d, w, m, y = calc_perf(data)
-            results[isin] = (name, price, d, w, m, y)
-        except:
-            results[isin] = (name, 0, 0, 0, 0, 0)
+        data = get_data(ticker)
+        results[isin] = (name, *calc_perf(data))
 
     msg = format_msg(results)
     send_telegram(msg)
 
+
+# ==============================
+# AVVIO
+# ==============================
 
 if __name__ == "__main__":
     run()
