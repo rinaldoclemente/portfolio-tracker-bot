@@ -28,4 +28,3 @@ jobs:
 
       - name: Run bot
         run: python portfolio_bot.py
-``
