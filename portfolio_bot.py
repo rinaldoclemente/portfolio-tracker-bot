@@ -11,21 +11,7 @@ TOKEN = os.getenv("TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
 # ==============================
-# PORTFOLIO ORIGINALE (EUROPA) ❌ NON AFFIDABILE SU GITHUB
-# ==============================
-# PORTFOLIO = {
-#     "IE00B6R52259": ("SSAC.L", "MSCI ACWI"),
-#     "IE00B579F325": ("SGLD.L", "Gold"),
-#     "IE00BKM4GZ66": ("EIMI.L", "Emerging Markets"),
-#     "IE000U58J0M1": ("INRA.AS", "Clean Energy"),
-#     "IE00BF4RFH31": ("WSML.L", "Small Cap"),
-#     "IE00B4NCWG09": ("SSLN.L", "Silver"),
-#     "IE00B3WJKG14": ("IITU.L", "Tech"),
-#     "IE00BH4GR342": ("GLRA.L", "Real Estate")
-# }
-
-# ==============================
-# PORTFOLIO ATTIVO ✅ (US ETF PROXY - STABILI)
+# PORTFOLIO
 # ==============================
 
 PORTFOLIO = {
@@ -43,27 +29,30 @@ PORTFOLIO = {
 # FUNZIONI
 # ==============================
 
-def get_data(ticker):      
+def get_data(ticker):
     try:
-            ticker_obj = yf.Ticker(ticker)
-            data = ticker_obj.history(period="1y")
-    
-            if data is None or data.empty:
-                return None
-    
-            return data
-    
-        except Exception as e:
-            print(f"Errore su {ticker}: {e}")
+        ticker_obj = yf.Ticker(ticker)
+        data = ticker_obj.history(period="1y")
+
+        if data is None or data.empty:
+            print(f"⚠️ Nessun dato per {ticker}")
             return None
 
+        return data
+
+    except Exception as e:
+        print(f"Errore download {ticker}: {e}")
+        return None
 
 
 def calc_perf(data):
     if data is None or data.empty:
         return 0, 0, 0, 0, 0
 
-    close = data["Close"]
+    close = data["Close"].dropna()
+
+    if len(close) < 2:
+        return 0, 0, 0, 0, 0
 
     try:
         latest = float(close.iloc[-1])
@@ -73,7 +62,8 @@ def calc_perf(data):
         monthly = (latest - float(close.iloc[-22])) / float(close.iloc[-22]) if len(close) > 22 else 0
         yearly = (latest - float(close.iloc[0])) / float(close.iloc[0])
 
-    except:
+    except Exception as e:
+        print("Errore calcolo:", e)
         return 0, 0, 0, 0, 0
 
     return latest, daily, weekly, monthly, yearly
@@ -118,22 +108,29 @@ def send_telegram(msg):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
 
     try:
-        requests.post(url, data={
+        response = requests.post(url, data={
             "chat_id": CHAT_ID,
             "text": msg
         })
+        print("✅ Messaggio inviato:", response.status_code)
+
     except Exception as e:
-        print("Errore invio Telegram:", e)
+        print("Errore Telegram:", e)
 
 
 def run():
     results = {}
 
     for isin, (ticker, name) in PORTFOLIO.items():
+        print(f"Scaricando {ticker}...")
+
         data = get_data(ticker)
-        results[isin] = (name, *calc_perf(data))
+        price, d, w, m, y = calc_perf(data)
+
+        results[isin] = (name, price, d, w, m, y)
 
     msg = format_msg(results)
+    print(msg)
     send_telegram(msg)
 
 
