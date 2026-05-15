@@ -1,6 +1,6 @@
 import yfinance as yf
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 import matplotlib.pyplot as plt
 
@@ -12,18 +12,30 @@ TOKEN = os.getenv("TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
 # ==============================
-# DATI REALI TUOI
+# DATI REALI ATTUALI
 # ==============================
 
-VALORE_TOTALE = 47339
+PORTFOLIO_VALUES = {
+    "ACWI": 23337,
+    "GLD": 2257,
+    "EEM": 3795,
+    "ICLN": 4916,
+    "IWM": 2924,
+    "SLV": 2853,
+    "XLK": 4037,
+    "REET": 2355,
+    "BTC-USD": 865
+}
+
 INVESTITO_TOTALE = 34500
-ANNI = 3.4
+PAC_MENSILE = 750
+CAGR = 0.097  # calcolato prima
 
 # ==============================
-# PORTFOLIO
+# NOMI
 # ==============================
 
-PORTFOLIO = {
+NAMES = {
     "ACWI": "MSCI ACWI",
     "GLD": "Gold",
     "EEM": "Emerging Markets",
@@ -36,143 +48,164 @@ PORTFOLIO = {
 }
 
 # ==============================
-# FUNZIONI
-# ==============================
 
-def get_change(ticker):
+def get_perf(ticker):
     try:
-        data = yf.Ticker(ticker).history(period="2d")
+        data = yf.Ticker(ticker).history(period="1y")
         close = data["Close"].dropna()
 
-        today = float(close.iloc[-1])
-        prev = float(close.iloc[-2])
+        last = float(close.iloc[-2])
 
-        return (today - prev) / prev
+        return {
+            "d": (last - float(close.iloc[-3])) / float(close.iloc[-3]),
+            "w": (last - float(close.iloc[-7])) / float(close.iloc[-7]),
+            "m": (last - float(close.iloc[-22])) / float(close.iloc[-22]),
+            "y": (last - float(close.iloc[0])) / float(close.iloc[0])
+        }
     except:
-        return 0
+        return {"d":0,"w":0,"m":0,"y":0}
 
-
-def calc_cagr():
-    return (VALORE_TOTALE / INVESTITO_TOTALE) ** (1 / ANNI) - 1
-
-
-def emoji(v):
-    if v > 0:
-        return "🟢"
-    elif v < 0:
-        return "🔴"
-    return "⚪"
-
+# ==============================
 
 def build_data():
-    changes = {}
+    results = {}
 
-    for ticker in PORTFOLIO:
-        change = get_change(ticker)
-        changes[ticker] = change
+    for t in PORTFOLIO_VALUES:
+        results[t] = get_perf(t)
 
-    return changes
+    return results
 
+# ==============================
 
-def calc_daily_total(changes):
-    avg = sum(changes.values()) / len(changes)
-    euro = VALORE_TOTALE * avg
-    return avg, euro
+def total_value():
+    return sum(PORTFOLIO_VALUES.values())
 
+# ==============================
 
-def best_worst(changes):
-    best = max(changes, key=changes.get)
-    worst = min(changes, key=changes.get)
+def dynamic_weights():
+    total = total_value()
+    return {t: PORTFOLIO_VALUES[t] / total for t in PORTFOLIO_VALUES}
 
-    return best, worst
+# ==============================
 
+def weighted(results, key):
+    weights = dynamic_weights()
 
-def create_chart(changes):
-    names = [PORTFOLIO[t] for t in changes]
-    values = [v * 100 for v in changes.values()]
+    return sum(results[t][key] * weights[t] for t in results)
+
+# ==============================
+
+def simulate_future(months):
+    value = total_value()
+
+    for _ in range(months):
+        value = value * (1 + CAGR/12)
+        value += PAC_MENSILE  # PAC su ACWI
+
+    return value
+
+# ==============================
+
+def emoji(v):
+    return "🟢" if v > 0 else "🔴" if v < 0 else "⚪"
+
+# ==============================
+
+def best_worst(results):
+    daily = {t: results[t]["d"] for t in results}
+    return max(daily, key=daily.get), min(daily, key=daily.get)
+
+# ==============================
+
+def create_chart(results):
+    names = [NAMES[t] for t in results]
+    values = [results[t]["d"]*100 for t in results]
 
     plt.figure()
     plt.bar(names, values)
     plt.xticks(rotation=45)
-    plt.ylabel("Performance %")
-    plt.title("Daily Performance ETF")
-
     plt.tight_layout()
     plt.savefig("chart.png")
     plt.close()
 
+# ==============================
 
-def format_msg(changes):
-    today = datetime.now().strftime("%d/%m/%Y")
-
-    pnl = VALORE_TOTALE - INVESTITO_TOTALE
+def format_msg(results):
+    val_tot = total_value()
+    pnl = val_tot - INVESTITO_TOTALE
     pnl_pct = pnl / INVESTITO_TOTALE
-    cagr = calc_cagr()
 
-    daily_pct, daily_euro = calc_daily_total(changes)
+    daily = weighted(results, "d")
+    weekly = weighted(results, "w")
+    monthly = weighted(results, "m")
+    yearly = weighted(results, "y")
 
-    best, worst = best_worst(changes)
+    daily_euro = val_tot * daily
 
-    msg = f"📊 *Portfolio Update* ({today})\n\n"
+    best, worst = best_worst(results)
 
-    msg += f"💼 *Valore totale*\n{VALORE_TOTALE:,.0f} €\n\n"
+    fut_1y = simulate_future(12)
+    fut_5y = simulate_future(60)
 
-    msg += f"📈 *Performance totale*\n"
-    msg += f"{emoji(pnl)} {pnl:+,.0f} € ({pnl_pct:+.2%})\n\n"
+    date = (datetime.now()-timedelta(days=1)).strftime("%d/%m/%Y")
 
-    msg += f"📉 *CAGR*\n{cagr:+.2%}\n\n"
+    msg = f"📊 *Portfolio Update* ({date})\n\n"
 
-    msg += f"📅 *Oggi*\n"
-    msg += f"{emoji(daily_pct)} {daily_euro:+,.0f} € ({daily_pct:+.2%})\n\n"
+    msg += f"💼 {val_tot:,.0f} €\n\n"
 
-    msg += f"🏆 *Top / Flop*\n"
-    msg += f"🟢 {PORTFOLIO[best]} ({changes[best]:+.2%})\n"
-    msg += f"🔴 {PORTFOLIO[worst]} ({changes[worst]:+.2%})\n\n"
+    msg += f"📈 P&L: {emoji(pnl)} {pnl:+,.0f} € ({pnl_pct:+.2%})\n\n"
 
-    if daily_pct < -0.02:
-        msg += "🚨 *ALERT*: perdita giornaliera oltre -2%\n\n"
+    msg += "📅 Performance\n"
+    msg += f"{emoji(daily)} Giorno: {daily:+.2%}\n"
+    msg += f"{emoji(weekly)} Settimana: {weekly:+.2%}\n"
+    msg += f"{emoji(monthly)} Mese: {monthly:+.2%}\n"
+    msg += f"{emoji(yearly)} Anno: {yearly:+.2%}\n\n"
 
-    msg += "📦 *Dettaglio Asset*\n"
+    msg += f"💰 Impatto: {daily_euro:+,.0f} €\n\n"
 
-    for t, name in PORTFOLIO.items():
-        val = changes[t]
-        msg += f"{emoji(val)} {name}: {val:+.2%}\n"
+    msg += f"🏆 Top: {NAMES[best]} {results[best]['d']:+.2%}\n"
+    msg += f"🔻 Worst: {NAMES[worst]} {results[worst]['d']:+.2%}\n\n"
+
+    msg += "🔮 Proiezioni\n"
+    msg += f"12 mesi: {fut_1y:,.0f} €\n"
+    msg += f"5 anni: {fut_5y:,.0f} €\n\n"
+
+    msg += "📦 Asset\n"
+    for t in results:
+        msg += f"{emoji(results[t]['d'])} {NAMES[t]} {results[t]['d']:+.2%}\n"
 
     return msg
 
+# ==============================
 
 def send_telegram(msg):
-    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-
-    requests.post(url, data={
-        "chat_id": CHAT_ID,
-        "text": msg,
-        "parse_mode": "Markdown"
-    })
-
+    requests.post(
+        f"https://api.telegram.org/bot{TOKEN}/sendMessage",
+        data={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"}
+    )
 
 def send_chart():
-    url = f"https://api.telegram.org/bot{TOKEN}/sendPhoto"
+    with open("chart.png","rb") as img:
+        requests.post(
+            f"https://api.telegram.org/bot{TOKEN}/sendPhoto",
+            data={"chat_id": CHAT_ID},
+            files={"photo": img}
+        )
 
-    with open("chart.png", "rb") as img:
-        requests.post(url, data={"chat_id": CHAT_ID}, files={"photo": img})
-
+# ==============================
 
 def run():
-    changes = build_data()
+    results = build_data()
 
-    create_chart(changes)
+    create_chart(results)
 
-    msg = format_msg(changes)
+    msg = format_msg(results)
 
     print(msg)
 
     send_telegram(msg)
     send_chart()
 
-
-# ==============================
-# RUN
 # ==============================
 
 if __name__ == "__main__":
