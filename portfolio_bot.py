@@ -163,6 +163,9 @@ def format_msg(results):
     msg += f"{emoji(monthly)} Mese: {monthly:+.2%}\n"
     msg += f"{emoji(yearly)} Anno: {yearly:+.2%}\n\n"
 
+    # -----------------------------
+    # TOP / FLOP
+    # -----------------------------
     msg += f"🏆 Top: {NAMES[best]} {results[best]['d']:+.2%}\n"
     msg += f"🔻 Worst: {NAMES[worst]} {results[worst]['d']:+.2%}\n\n"
 
@@ -174,18 +177,33 @@ def format_msg(results):
     msg += f"5 anni: {fut5:,.0f} €\n\n"
 
     # -----------------------------
-    # DETTAGLIO ASSET COMPLETO 🔥
+    # DETTAGLIO ASSET + CONTRIBUTO 🔥
     # -----------------------------
     msg += "📦 *Asset*\n\n"
+
+    total_contribution = 0
 
     for t in results:
         data = results[t]
 
+        value = PORTFOLIO_VALUES[t]
+        weight = value / val
+
+        contrib_pct = weight * data["d"]
+        contrib_euro = contrib_pct * val
+
+        total_contribution += contrib_euro
+
         msg += f"*{NAMES[t]}*\n"
-        msg += f"{emoji(data['d'])} D: {data['d']:+.2%}\n"
+        msg += f"{emoji(data['d'])} D: {data['d']:+.2%} → {contrib_euro:+,.0f} €\n"
         msg += f"{emoji(data['w'])} W: {data['w']:+.2%}\n"
         msg += f"{emoji(data['m'])} M: {data['m']:+.2%}\n"
         msg += f"{emoji(data['y'])} Y: {data['y']:+.2%}\n\n"
+
+    # -----------------------------
+    # CONTROLLO COERENZA
+    # -----------------------------
+    msg += f"💰 Totale impatto: {total_contribution:+,.0f} €\n"
 
     return msg
 
