@@ -130,9 +130,10 @@ def create_chart(results):
 
 # ==============================
 
+
 def format_msg(results):
-    val_tot = total_value()
-    pnl = val_tot - INVESTITO_TOTALE
+    val = total_value()
+    pnl = val - INVESTITO_TOTALE
     pnl_pct = pnl / INVESTITO_TOTALE
 
     daily = weighted(results, "d")
@@ -140,41 +141,54 @@ def format_msg(results):
     monthly = weighted(results, "m")
     yearly = weighted(results, "y")
 
-    daily_euro = val_tot * daily
-
     best, worst = best_worst(results)
 
-    fut_1y = simulate_future(12)
-    fut_5y = simulate_future(60)
+    fut1 = simulate_future(12)
+    fut5 = simulate_future(60)
 
     date = (datetime.now()-timedelta(days=1)).strftime("%d/%m/%Y")
 
     msg = f"📊 *Portfolio Update* ({date})\n\n"
 
-    msg += f"💼 {val_tot:,.0f} €\n\n"
+    msg += f"💼 {val:,.0f} €\n\n"
 
-    msg += f"📈 P&L: {emoji(pnl)} {pnl:+,.0f} € ({pnl_pct:+.2%})\n\n"
+    msg += f"📈 {pnl:+,.0f} € ({pnl_pct:+.2%})\n\n"
 
-    msg += "📅 Performance\n"
+    # -----------------------------
+    # PERFORMANCE PORTAFOGLIO
+    # -----------------------------
+    msg += "📅 *Performance Portafoglio*\n"
     msg += f"{emoji(daily)} Giorno: {daily:+.2%}\n"
     msg += f"{emoji(weekly)} Settimana: {weekly:+.2%}\n"
     msg += f"{emoji(monthly)} Mese: {monthly:+.2%}\n"
     msg += f"{emoji(yearly)} Anno: {yearly:+.2%}\n\n"
 
-    msg += f"💰 Impatto: {daily_euro:+,.0f} €\n\n"
-
     msg += f"🏆 Top: {NAMES[best]} {results[best]['d']:+.2%}\n"
     msg += f"🔻 Worst: {NAMES[worst]} {results[worst]['d']:+.2%}\n\n"
 
-    msg += "🔮 Proiezioni\n"
-    msg += f"12 mesi: {fut_1y:,.0f} €\n"
-    msg += f"5 anni: {fut_5y:,.0f} €\n\n"
+    # -----------------------------
+    # PROIEZIONI
+    # -----------------------------
+    msg += "🔮 *Proiezioni*\n"
+    msg += f"12 mesi: {fut1:,.0f} €\n"
+    msg += f"5 anni: {fut5:,.0f} €\n\n"
 
-    msg += "📦 Asset\n"
+    # -----------------------------
+    # DETTAGLIO ASSET COMPLETO 🔥
+    # -----------------------------
+    msg += "📦 *Asset*\n\n"
+
     for t in results:
-        msg += f"{emoji(results[t]['d'])} {NAMES[t]} {results[t]['d']:+.2%}\n"
+        data = results[t]
+
+        msg += f"*{NAMES[t]}*\n"
+        msg += f"{emoji(data['d'])} D: {data['d']:+.2%}\n"
+        msg += f"{emoji(data['w'])} W: {data['w']:+.2%}\n"
+        msg += f"{emoji(data['m'])} M: {data['m']:+.2%}\n"
+        msg += f"{emoji(data['y'])} Y: {data['y']:+.2%}\n\n"
 
     return msg
+
 
 # ==============================
 
