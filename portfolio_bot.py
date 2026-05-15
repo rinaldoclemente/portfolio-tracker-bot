@@ -43,12 +43,20 @@ PORTFOLIO = {
 # FUNZIONI
 # ==============================
 
-def get_data(ticker):
+def get_data(ticker):      
     try:
-        data = yf.download(ticker, period="1y", interval="1d", progress=False)
-        return data
-    except:
-        return None
+            ticker_obj = yf.Ticker(ticker)
+            data = ticker_obj.history(period="1y")
+    
+            if data is None or data.empty:
+                return None
+    
+            return data
+    
+        except Exception as e:
+            print(f"Errore su {ticker}: {e}")
+            return None
+
 
 
 def calc_perf(data):
