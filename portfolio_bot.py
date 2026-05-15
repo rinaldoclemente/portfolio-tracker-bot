@@ -2,140 +2,177 @@ import yfinance as yf
 import requests
 from datetime import datetime
 import os
+import matplotlib.pyplot as plt
 
 # ==============================
-# CONFIG (GitHub Secrets)
+# CONFIG
 # ==============================
 
 TOKEN = os.getenv("TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
 # ==============================
+# DATI REALI TUOI
+# ==============================
+
+VALORE_TOTALE = 47339
+INVESTITO_TOTALE = 34500
+ANNI = 3.4
+
+# ==============================
 # PORTFOLIO
 # ==============================
 
 PORTFOLIO = {
-    "IE00B6R52259": ("ACWI", "MSCI ACWI"),
-    "IE00B579F325": ("GLD", "Gold"),
-    "IE00BKM4GZ66": ("EEM", "Emerging Markets"),
-    "IE000U58J0M1": ("ICLN", "Clean Energy"),
-    "IE00BF4RFH31": ("IWM", "Small Cap"),
-    "IE00B4NCWG09": ("SLV", "Silver"),
-    "IE00B3WJKG14": ("XLK", "Tech"),
-    "IE00BH4GR342": ("REET", "Real Estate")
+    "ACWI": "MSCI ACWI",
+    "GLD": "Gold",
+    "EEM": "Emerging Markets",
+    "ICLN": "Clean Energy",
+    "IWM": "Small Cap",
+    "SLV": "Silver",
+    "XLK": "Tech",
+    "REET": "Real Estate",
+    "BTC-USD": "Bitcoin"
 }
 
 # ==============================
 # FUNZIONI
 # ==============================
 
-def get_data(ticker):
+def get_change(ticker):
     try:
-        ticker_obj = yf.Ticker(ticker)
-        data = ticker_obj.history(period="1y")
+        data = yf.Ticker(ticker).history(period="2d")
+        close = data["Close"].dropna()
 
-        if data is None or data.empty:
-            print(f"⚠️ Nessun dato per {ticker}")
-            return None
+        today = float(close.iloc[-1])
+        prev = float(close.iloc[-2])
 
-        return data
-
-    except Exception as e:
-        print(f"Errore download {ticker}: {e}")
-        return None
+        return (today - prev) / prev
+    except:
+        return 0
 
 
-def calc_perf(data):
-    if data is None or data.empty:
-        return 0, 0, 0, 0, 0
-
-    close = data["Close"].dropna()
-
-    if len(close) < 2:
-        return 0, 0, 0, 0, 0
-
-    try:
-        latest = float(close.iloc[-1])
-
-        daily = (latest - float(close.iloc[-2])) / float(close.iloc[-2]) if len(close) > 1 else 0
-        weekly = (latest - float(close.iloc[-6])) / float(close.iloc[-6]) if len(close) > 6 else 0
-        monthly = (latest - float(close.iloc[-22])) / float(close.iloc[-22]) if len(close) > 22 else 0
-        yearly = (latest - float(close.iloc[0])) / float(close.iloc[0])
-
-    except Exception as e:
-        print("Errore calcolo:", e)
-        return 0, 0, 0, 0, 0
-
-    return latest, daily, weekly, monthly, yearly
+def calc_cagr():
+    return (VALORE_TOTALE / INVESTITO_TOTALE) ** (1 / ANNI) - 1
 
 
-def emoji(value):
-    if value > 0:
+def emoji(v):
+    if v > 0:
         return "🟢"
-    elif value < 0:
+    elif v < 0:
         return "🔴"
     return "⚪"
 
 
-def format_msg(results):
+def build_data():
+    changes = {}
+
+    for ticker in PORTFOLIO:
+        change = get_change(ticker)
+        changes[ticker] = change
+
+    return changes
+
+
+def calc_daily_total(changes):
+    avg = sum(changes.values()) / len(changes)
+    euro = VALORE_TOTALE * avg
+    return avg, euro
+
+
+def best_worst(changes):
+    best = max(changes, key=changes.get)
+    worst = min(changes, key=changes.get)
+
+    return best, worst
+
+
+def create_chart(changes):
+    names = [PORTFOLIO[t] for t in changes]
+    values = [v * 100 for v in changes.values()]
+
+    plt.figure()
+    plt.bar(names, values)
+    plt.xticks(rotation=45)
+    plt.ylabel("Performance %")
+    plt.title("Daily Performance ETF")
+
+    plt.tight_layout()
+    plt.savefig("chart.png")
+    plt.close()
+
+
+def format_msg(changes):
     today = datetime.now().strftime("%d/%m/%Y")
 
-    msg = f"📊 Portfolio Update ({today})\n\n"
+    pnl = VALORE_TOTALE - INVESTITO_TOTALE
+    pnl_pct = pnl / INVESTITO_TOTALE
+    cagr = calc_cagr()
 
-    for isin, (name, price, d, w, m, y) in results.items():
+    daily_pct, daily_euro = calc_daily_total(changes)
 
-        msg += f"📌 {name}\n"
-        msg += f"{isin}\n"
+    best, worst = best_worst(changes)
 
-        if price == 0:
-            msg += "⚠️ Dati non disponibili\n\n"
-            continue
+    msg = f"📊 *Portfolio Update* ({today})\n\n"
 
-        msg += f"💰 Prezzo: {price:.2f}\n"
-        msg += f"{emoji(d)} Giorno: {d:+.2%}\n"
-        msg += f"{emoji(w)} Settimana: {w:+.2%}\n"
-        msg += f"{emoji(m)} Mese: {m:+.2%}\n"
-        msg += f"{emoji(y)} Anno: {y:+.2%}\n\n"
+    msg += f"💼 *Valore totale*\n{VALORE_TOTALE:,.0f} €\n\n"
+
+    msg += f"📈 *Performance totale*\n"
+    msg += f"{emoji(pnl)} {pnl:+,.0f} € ({pnl_pct:+.2%})\n\n"
+
+    msg += f"📉 *CAGR*\n{cagr:+.2%}\n\n"
+
+    msg += f"📅 *Oggi*\n"
+    msg += f"{emoji(daily_pct)} {daily_euro:+,.0f} € ({daily_pct:+.2%})\n\n"
+
+    msg += f"🏆 *Top / Flop*\n"
+    msg += f"🟢 {PORTFOLIO[best]} ({changes[best]:+.2%})\n"
+    msg += f"🔴 {PORTFOLIO[worst]} ({changes[worst]:+.2%})\n\n"
+
+    if daily_pct < -0.02:
+        msg += "🚨 *ALERT*: perdita giornaliera oltre -2%\n\n"
+
+    msg += "📦 *Dettaglio Asset*\n"
+
+    for t, name in PORTFOLIO.items():
+        val = changes[t]
+        msg += f"{emoji(val)} {name}: {val:+.2%}\n"
 
     return msg
 
 
 def send_telegram(msg):
-    if not TOKEN or not CHAT_ID:
-        print("❌ TOKEN o CHAT_ID mancanti")
-        return
-
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
 
-    try:
-        response = requests.post(url, data={
-            "chat_id": CHAT_ID,
-            "text": msg
-        })
-        print("✅ Messaggio inviato:", response.status_code)
+    requests.post(url, data={
+        "chat_id": CHAT_ID,
+        "text": msg,
+        "parse_mode": "Markdown"
+    })
 
-    except Exception as e:
-        print("Errore Telegram:", e)
+
+def send_chart():
+    url = f"https://api.telegram.org/bot{TOKEN}/sendPhoto"
+
+    with open("chart.png", "rb") as img:
+        requests.post(url, data={"chat_id": CHAT_ID}, files={"photo": img})
 
 
 def run():
-    results = {}
+    changes = build_data()
 
-    for isin, (ticker, name) in PORTFOLIO.items():
-        print(f"Scaricando {ticker}...")
+    create_chart(changes)
 
-        data = get_data(ticker)
-        price, d, w, m, y = calc_perf(data)
+    msg = format_msg(changes)
 
-        results[isin] = (name, price, d, w, m, y)
-
-    msg = format_msg(results)
     print(msg)
+
     send_telegram(msg)
+    send_chart()
 
 
 # ==============================
-# AVVIO
+# RUN
 # ==============================
 
 if __name__ == "__main__":
