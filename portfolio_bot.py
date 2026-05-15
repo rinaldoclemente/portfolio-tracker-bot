@@ -11,18 +11,32 @@ TOKEN = os.getenv("TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
 # ==============================
-# PORTFOLIO (corretto Yahoo)
+# PORTFOLIO ORIGINALE (EUROPA) ❌ NON AFFIDABILE SU GITHUB
+# ==============================
+# PORTFOLIO = {
+#     "IE00B6R52259": ("SSAC.L", "MSCI ACWI"),
+#     "IE00B579F325": ("SGLD.L", "Gold"),
+#     "IE00BKM4GZ66": ("EIMI.L", "Emerging Markets"),
+#     "IE000U58J0M1": ("INRA.AS", "Clean Energy"),
+#     "IE00BF4RFH31": ("WSML.L", "Small Cap"),
+#     "IE00B4NCWG09": ("SSLN.L", "Silver"),
+#     "IE00B3WJKG14": ("IITU.L", "Tech"),
+#     "IE00BH4GR342": ("GLRA.L", "Real Estate")
+# }
+
+# ==============================
+# PORTFOLIO ATTIVO ✅ (US ETF PROXY - STABILI)
 # ==============================
 
 PORTFOLIO = {
-    "IE00B6R52259": ("SSAC.L", "MSCI ACWI"),
-    "IE00B579F325": ("SGLD.L", "Gold"),
-    "IE00BKM4GZ66": ("EIMI.L", "Emerging Markets"),
-    "IE000U58J0M1": ("INRA.AS", "Clean Energy"),
-    "IE00BF4RFH31": ("WSML.L", "Small Cap"),
-    "IE00B4NCWG09": ("SSLN.L", "Silver"),
-    "IE00B3WJKG14": ("IITU.L", "Tech"),
-    "IE00BH4GR342": ("GLRA.L", "Real Estate")
+    "IE00B6R52259": ("ACWI", "MSCI ACWI"),
+    "IE00B579F325": ("GLD", "Gold"),
+    "IE00BKM4GZ66": ("EEM", "Emerging Markets"),
+    "IE000U58J0M1": ("ICLN", "Clean Energy"),
+    "IE00BF4RFH31": ("IWM", "Small Cap"),
+    "IE00B4NCWG09": ("SLV", "Silver"),
+    "IE00B3WJKG14": ("XLK", "Tech"),
+    "IE00BH4GR342": ("REET", "Real Estate")
 }
 
 # ==============================
