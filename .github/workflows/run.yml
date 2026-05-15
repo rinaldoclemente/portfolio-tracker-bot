@@ -9,17 +9,23 @@ jobs:
   run:
     runs-on: ubuntu-latest
 
+    env:
+      TOKEN: ${{ secrets.TOKEN }}
+      CHAT_ID: ${{ secrets.CHAT_ID }}
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4   # ✅ aggiornato
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Setup Python
-      uses: actions/setup-python@v5   # ✅ aggiornato
-      with:
-        python-version: '3.11'
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-    - name: Install dependencies
-      run: pip install -r requirements.txt
+      - name: Install dependencies
+        run: pip install -r requirements.txt
 
-    - name: Run bot
-      run: python portfolio_bot.py
+      - name: Run bot
+        run: python portfolio_bot.py
+``
